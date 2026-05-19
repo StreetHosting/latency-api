@@ -115,7 +115,8 @@ make update-fleet
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LISTEN_ADDR` | `127.0.0.1:8080` | Bind address (behind nginx) |
-| `ALLOWED_ORIGINS` | streethosting + localhost | Comma-separated CORS allowlist |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | Origens exatas (CORS) |
+| `ALLOWED_ORIGIN_SUFFIXES` | `streethosting.com.br`, `strt.host`, `ruas.run` | Qualquer subdomínio (e apex) desses domínios |
 
 File on VPS: `/etc/latency-probe/probe.env` (see [configs/probe.env.example](./configs/probe.env.example)).
 

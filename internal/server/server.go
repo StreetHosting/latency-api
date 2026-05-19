@@ -11,20 +11,21 @@ import (
 
 // Config holds probe server settings.
 type Config struct {
-	ListenAddr      string
-	AllowedOrigins  string
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
-	ShutdownTimeout time.Duration
+	ListenAddr             string
+	AllowedOrigins         string
+	AllowedOriginSuffixes  string
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	IdleTimeout            time.Duration
+	ShutdownTimeout        time.Duration
 }
 
 // New builds the HTTP handler and server.
 func New(cfg Config, log *slog.Logger) *http.Server {
-	allowed := cors.ParseOrigins(cfg.AllowedOrigins)
+	policy := cors.NewPolicy(cfg.AllowedOrigins, cfg.AllowedOriginSuffixes)
 
 	mux := http.NewServeMux()
-	mux.Handle("/ping", cors.Middleware(allowed)(http.HandlerFunc(pingHandler)))
+	mux.Handle("/ping", cors.Middleware(policy)(http.HandlerFunc(pingHandler)))
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", "")

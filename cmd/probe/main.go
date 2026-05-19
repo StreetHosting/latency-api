@@ -11,14 +11,18 @@ import (
 	"github.com/streethosting/latency-api/internal/server"
 )
 
-const defaultOrigins = "https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000"
+const (
+	defaultOrigins        = "http://localhost:3000"
+	defaultOriginSuffixes = "streethosting.com.br,strt.host,ruas.run"
+)
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	cfg := server.Config{
-		ListenAddr:      envOr("LISTEN_ADDR", "127.0.0.1:8080"),
-		AllowedOrigins:  envOr("ALLOWED_ORIGINS", defaultOrigins),
+		ListenAddr:            envOr("LISTEN_ADDR", "127.0.0.1:8080"),
+		AllowedOrigins:        envOr("ALLOWED_ORIGINS", defaultOrigins),
+		AllowedOriginSuffixes: envOr("ALLOWED_ORIGIN_SUFFIXES", defaultOriginSuffixes),
 		ReadTimeout:     5 * time.Second,
 		WriteTimeout:    5 * time.Second,
 		IdleTimeout:     30 * time.Second,

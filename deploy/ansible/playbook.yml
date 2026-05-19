@@ -13,8 +13,8 @@
     probe_binary_path: /usr/local/bin/latency-probe
     probe_local_binary: "{{ playbook_dir }}/../../dist/latency-probe-linux-amd64"
     certbot_email: noreply@streethosting.com.br
-    allowed_origins: >-
-      https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000
+    allowed_origins: "http://localhost:3000"
+    allowed_origin_suffixes: "streethosting.com.br,strt.host,ruas.run"
 
   tasks:
     - name: Ensure probe system user exists
@@ -52,6 +52,7 @@
         content: |
           LISTEN_ADDR=127.0.0.1:8080
           ALLOWED_ORIGINS={{ allowed_origins }}
+          ALLOWED_ORIGIN_SUFFIXES={{ allowed_origin_suffixes }}
 
     - name: Install probe binary
       ansible.builtin.copy:

@@ -143,7 +143,8 @@ run_install() {
 
   log "Instalando serviço para ${PROBE_HOSTNAME} ..."
   export PROBE_HOSTNAME CERTBOT_EMAIL="${CERTBOT_EMAIL:-noreply@streethosting.com.br}"
-  export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000}"
+  export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000}"
+  export ALLOWED_ORIGIN_SUFFIXES="${ALLOWED_ORIGIN_SUFFIXES:-streethosting.com.br,strt.host,ruas.run}"
   export BINARY_SRC="${INSTALL_DIR}/dist/latency-probe-linux-amd64"
   bash "${INSTALL_DIR}/scripts/install.sh"
 }

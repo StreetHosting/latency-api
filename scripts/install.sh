@@ -9,7 +9,8 @@ cd "${ROOT}"
 PROBE_HOSTNAME="${PROBE_HOSTNAME:?Set PROBE_HOSTNAME (e.g. latency-sp-games-1.streethosting.com.br)}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-noreply@streethosting.com.br}"
 BINARY_SRC="${BINARY_SRC:-${ROOT}/dist/latency-probe-linux-amd64}"
-ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000}"
+ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000}"
+ALLOWED_ORIGIN_SUFFIXES="${ALLOWED_ORIGIN_SUFFIXES:-streethosting.com.br,strt.host,ruas.run}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root." >&2
@@ -27,6 +28,7 @@ install -d -m 0755 /var/lib/latency-probe
 cat >/etc/latency-probe/probe.env <<EOF
 LISTEN_ADDR=127.0.0.1:8080
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+ALLOWED_ORIGIN_SUFFIXES=${ALLOWED_ORIGIN_SUFFIXES}
 EOF
 chmod 0640 /etc/latency-probe/probe.env
 
