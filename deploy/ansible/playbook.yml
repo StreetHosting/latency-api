@@ -12,7 +12,7 @@
     probe_config_dir: /etc/latency-probe
     probe_binary_path: /usr/local/bin/latency-probe
     probe_local_binary: "{{ playbook_dir }}/../../dist/latency-probe-linux-amd64"
-    certbot_email: ops@streethosting.com.br
+    certbot_email: noreply@streethosting.com.br
     allowed_origins: >-
       https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000
 

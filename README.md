@@ -34,6 +34,34 @@ CI uploads the Linux binary as an artifact on every push.
 
 ## Deploy on Debian 13 VPS
 
+### Debian 13 minimal (bootstrap automático)
+
+Em uma VPS **minimal** sem `git`, `make`, `sudo` ou `go`, execute **como root** (substitua o hostname):
+
+```bash
+export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br
+export CERTBOT_EMAIL=noreply@streethosting.com.br
+
+curl -fsSL https://raw.githubusercontent.com/StreetHosting/latency-api/main/scripts/bootstrap-debian.sh | bash
+```
+
+O script instala dependências via `apt`, clona [StreetHosting/latency-api](https://github.com/StreetHosting/latency-api) em `/opt/latency-api`, compila o binário e roda `install.sh` (nginx, certbot, systemd).
+
+**Só build** (sem instalar nginx/TLS ainda):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StreetHosting/latency-api/main/scripts/bootstrap-debian.sh | SKIP_INSTALL=1 bash
+```
+
+**Reexecutar** no mesmo servidor (atualiza repo + recompila + reinstala se `PROBE_HOSTNAME` estiver setado):
+
+```bash
+export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br
+bash /opt/latency-api/scripts/bootstrap-debian.sh
+```
+
+Antes do bootstrap: DNS do `PROBE_HOSTNAME` deve apontar para o IP desta VPS.
+
 ### Fleet (recommended): Ansible
 
 1. Copy inventory and edit IPs/hostnames:
@@ -63,7 +91,7 @@ On the VPS as root, copy the repo (or `make package` bundle), set hostname, inst
 
 ```bash
 export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br
-export CERTBOT_EMAIL=ops@streethosting.com.br
+export CERTBOT_EMAIL=noreply@streethosting.com.br
 make build
 sudo bash scripts/install.sh
 ```
@@ -95,6 +123,7 @@ File on VPS: `/etc/latency-probe/probe.env` (see [configs/probe.env.example](./c
 
 | Script | Purpose |
 |--------|---------|
+| `scripts/bootstrap-debian.sh` | VPS minimal: apt + clone + build (+ install opcional) |
 | `scripts/healthcheck.sh` | systemd/monitoring: local `GET /ping` |
 | `scripts/verify.sh` | Contract check (OPTIONS + GET, CORS, cache) |
 | `scripts/update.sh` | Replace binary + restart |

@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
 PROBE_HOSTNAME="${PROBE_HOSTNAME:?Set PROBE_HOSTNAME (e.g. latency-sp-games-1.streethosting.com.br)}"
-CERTBOT_EMAIL="${CERTBOT_EMAIL:-ops@streethosting.com.br}"
+CERTBOT_EMAIL="${CERTBOT_EMAIL:-noreply@streethosting.com.br}"
 BINARY_SRC="${BINARY_SRC:-${ROOT}/dist/latency-probe-linux-amd64}"
 ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000}"
 

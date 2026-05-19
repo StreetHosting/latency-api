@@ -1,4 +1,4 @@
-.PHONY: build test run dev clean deploy deploy-check verify package
+.PHONY: build test run dev clean deploy deploy-check verify package bootstrap-doc
 
 BINARY := dist/latency-probe-linux-amd64
 INVENTORY := deploy/inventory/hosts.yml
@@ -41,3 +41,6 @@ verify:
 update-fleet: build
 	ansible -i $(INVENTORY) probe_nodes -b -m copy -a "src=$(BINARY) dest=/usr/local/bin/latency-probe mode=0755"
 	ansible -i $(INVENTORY) probe_nodes -b -m systemd -a "name=latency-probe state=restarted"
+
+bootstrap-doc:
+	@echo "curl -fsSL https://raw.githubusercontent.com/StreetHosting/latency-api/main/scripts/bootstrap-debian.sh | bash"
