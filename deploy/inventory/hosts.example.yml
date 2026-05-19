@@ -1,0 +1,37 @@
+# Copy to hosts.yml and fill SSH targets + hostnames.
+# One VPS per probe node (6 nodes total).
+
+all:
+  children:
+    probe_nodes:
+      hosts:
+        latency-sp-games-1:
+          ansible_host: 177.55.0.10
+          probe_hostname: latency-sp-games-1.streethosting.com.br
+          network_id: sp-games
+          display_address: "177.55.0.10"
+        latency-sp-games-2:
+          ansible_host: 177.55.0.11
+          probe_hostname: latency-sp-games-2.streethosting.com.br
+          network_id: sp-games
+          display_address: "177.55.0.11"
+        latency-sp-empresa-1:
+          ansible_host: 177.56.0.10
+          probe_hostname: latency-sp-empresa-1.streethosting.com.br
+          network_id: sp-empresa
+          display_address: "177.56.0.10"
+        latency-sp-empresa-2:
+          ansible_host: 177.56.0.11
+          probe_hostname: latency-sp-empresa-2.streethosting.com.br
+          network_id: sp-empresa
+          display_address: "177.56.0.11"
+        latency-sp-raw-1:
+          ansible_host: 177.57.0.10
+          probe_hostname: latency-sp-raw-1.streethosting.com.br
+          network_id: sp-nao-mitigada
+          display_address: "177.57.0.10"
+        latency-sp-raw-2:
+          ansible_host: 177.57.0.11
+          probe_hostname: latency-sp-raw-2.streethosting.com.br
+          network_id: sp-nao-mitigada
+          display_address: "177.57.0.11"

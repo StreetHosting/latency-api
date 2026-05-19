@@ -1,0 +1,135 @@
+---
+# Deploy or update latency-probe on Debian 13 VPS nodes.
+# Usage (from repo root):
+#   make build
+#   ansible-playbook -i deploy/inventory/hosts.yml deploy/ansible/playbook.yml
+
+- name: Deploy StreetHosting latency probe
+  hosts: probe_nodes
+  become: true
+  vars:
+    probe_user: latency-probe
+    probe_config_dir: /etc/latency-probe
+    probe_binary_path: /usr/local/bin/latency-probe
+    probe_local_binary: "{{ playbook_dir }}/../../dist/latency-probe-linux-amd64"
+    certbot_email: ops@streethosting.com.br
+    allowed_origins: >-
+      https://streethosting.com.br,https://www.streethosting.com.br,http://localhost:3000
+
+  tasks:
+    - name: Ensure probe system user exists
+      ansible.builtin.user:
+        name: "{{ probe_user }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: /var/lib/latency-probe
+        create_home: true
+
+    - name: Install packages
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+          - gettext-base
+        state: present
+        update_cache: true
+
+    - name: Create config directory
+      ansible.builtin.file:
+        path: "{{ probe_config_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy probe environment file
+      ansible.builtin.copy:
+        dest: "{{ probe_config_dir }}/probe.env"
+        owner: root
+        group: root
+        mode: "0640"
+        content: |
+          LISTEN_ADDR=127.0.0.1:8080
+          ALLOWED_ORIGINS={{ allowed_origins }}
+
+    - name: Install probe binary
+      ansible.builtin.copy:
+        src: "{{ probe_local_binary }}"
+        dest: "{{ probe_binary_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart latency-probe
+
+    - name: Install systemd unit
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../systemd/latency-probe.service"
+        dest: /etc/systemd/system/latency-probe.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart latency-probe
+
+    - name: Enable and start latency-probe
+      ansible.builtin.systemd:
+        name: latency-probe
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Ensure certbot webroot exists
+      ansible.builtin.file:
+        path: /var/www/certbot
+        state: directory
+        mode: "0755"
+
+    - name: Deploy HTTP bootstrap nginx site (for ACME)
+      ansible.builtin.template:
+        src: nginx-bootstrap.conf.j2
+        dest: "/etc/nginx/sites-available/{{ probe_hostname }}.conf"
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable nginx site
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ probe_hostname }}.conf"
+        dest: "/etc/nginx/sites-enabled/{{ probe_hostname }}.conf"
+        state: link
+      notify: Reload nginx
+
+    - name: Disable default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Obtain TLS certificate (first run)
+      ansible.builtin.command:
+        cmd: >-
+          certbot certonly --webroot -w /var/www/certbot --non-interactive --agree-tos
+          --email {{ certbot_email }} -d {{ probe_hostname }}
+        creates: "/etc/letsencrypt/live/{{ probe_hostname }}/fullchain.pem"
+      notify: Reload nginx
+
+    - name: Deploy full TLS nginx site
+      ansible.builtin.template:
+        src: nginx-site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ probe_hostname }}.conf"
+        mode: "0644"
+      notify: Reload nginx
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart latency-probe
+      ansible.builtin.systemd:
+        name: latency-probe
+        state: restarted
+
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded

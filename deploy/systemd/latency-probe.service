@@ -1,0 +1,35 @@
+[Unit]
+Description=StreetHosting connectivity latency probe
+Documentation=https://github.com/streethosting/latency-api
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=latency-probe
+Group=latency-probe
+EnvironmentFile=-/etc/latency-probe/probe.env
+ExecStart=/usr/local/bin/latency-probe
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=65535
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+ReadWritePaths=/var/lib/latency-probe
+
+[Install]
+WantedBy=multi-user.target
