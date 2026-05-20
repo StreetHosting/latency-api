@@ -57,7 +57,31 @@ install_base_packages() {
     certbot \
     python3-certbot-nginx \
     gettext-base \
-    openssl
+    openssl \
+    mtr-tiny \
+    libcap2-bin
+
+  if [[ -x /usr/bin/mtr ]]; then
+    setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || warn "setcap em /usr/bin/mtr falhou"
+  fi
+}
+
+detect_probe_hostname() {
+  if [[ -n "${PROBE_HOSTNAME:-}" ]]; then
+    return 0
+  fi
+  local conf name
+  for conf in /etc/nginx/sites-enabled/*.conf; do
+    [[ -f "${conf}" ]] || continue
+    name="$(grep -m1 '^\s*server_name\s' "${conf}" | sed -E 's/^\s*server_name\s+([^;]+);.*/\1/' | awk '{print $1}')"
+    if [[ -n "${name}" && "${name}" != "_" ]]; then
+      PROBE_HOSTNAME="${name}"
+      log "PROBE_HOSTNAME detectado via nginx: ${PROBE_HOSTNAME}"
+      export PROBE_HOSTNAME
+      return 0
+    fi
+  done
+  return 1
 }
 
 go_version_ok() {
@@ -132,24 +156,29 @@ build_probe() {
 
 run_install() {
   if [[ "${SKIP_INSTALL}" == "1" ]]; then
-    warn "SKIP_INSTALL=1 — pulando scripts/install.sh"
-    return
-  fi
-  if [[ -z "${PROBE_HOSTNAME:-}" ]]; then
-    warn "PROBE_HOSTNAME não definido — apenas build concluído."
-    warn "Para instalar nginx + TLS + systemd, execute:"
-    warn "  export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br"
-    warn "  export CERTBOT_EMAIL=noreply@streethosting.com.br"
-    warn "  bash ${INSTALL_DIR}/scripts/install.sh"
+    warn "SKIP_INSTALL=1 — pulando install/upgrade"
     return
   fi
 
-  log "Instalando serviço para ${PROBE_HOSTNAME} ..."
-  export PROBE_HOSTNAME CERTBOT_EMAIL="${CERTBOT_EMAIL:-noreply@streethosting.com.br}"
-  export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000}"
-  export ALLOWED_ORIGIN_SUFFIXES="${ALLOWED_ORIGIN_SUFFIXES:-streethosting.com.br,strt.host,ruas.run}"
-  export BINARY_SRC="${INSTALL_DIR}/dist/latency-probe-linux-amd64"
-  bash "${INSTALL_DIR}/scripts/install.sh"
+  if detect_probe_hostname || [[ -n "${PROBE_HOSTNAME:-}" ]]; then
+    log "Atualizando instalação existente (${PROBE_HOSTNAME}) ..."
+    export PROBE_HOSTNAME
+    bash "${INSTALL_DIR}/scripts/upgrade-probe.sh"
+    return
+  fi
+
+  if systemctl is-enabled latency-probe &>/dev/null; then
+    log "Serviço latency-probe encontrado — executando upgrade-probe ..."
+    bash "${INSTALL_DIR}/scripts/upgrade-probe.sh"
+    return
+  fi
+
+  warn "PROBE_HOSTNAME não definido — apenas build concluído."
+  warn "Primeira instalação:"
+  warn "  export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br"
+  warn "  export CERTBOT_EMAIL=noreply@streethosting.com.br"
+  warn "  bash ${INSTALL_DIR}/scripts/install.sh"
+  warn "Nó já com nginx (sem variável): bash ${INSTALL_DIR}/scripts/upgrade-probe.sh"
 }
 
 print_summary() {
@@ -170,8 +199,12 @@ print_summary() {
  Só trocar binário (sem apt/git):
    bash ${INSTALL_DIR}/scripts/update.sh
 
- Verificar contrato (de outra máquina, após DNS+TLS):
-   curl -i "https://\${PROBE_HOSTNAME}/ping" -H "Origin: https://streethosting.com.br"
+ Teste MTR local (substitua o IP de teste):
+   curl -sS http://127.0.0.1:8080/mtr -H "Origin: https://streethosting.com.br" -H "X-Real-IP: 1.1.1.1"
+
+ HTTPS (use o hostname real, não o placeholder SEU-HOSTNAME):
+   curl -sS "https://\${PROBE_HOSTNAME:-latency-sp-games-1.streethosting.com.br}/mtr" \\
+     -H "Origin: https://streethosting.com.br"
 ================================================================================
 EOF
 }

@@ -91,7 +91,7 @@ O script instala dependências via `apt`, clona [StreetHosting/latency-api](http
 curl -fsSL https://raw.githubusercontent.com/StreetHosting/latency-api/main/scripts/bootstrap-debian.sh | SKIP_INSTALL=1 bash
 ```
 
-**Reexecutar** no mesmo servidor (atualiza repo + recompila + reinstala se `PROBE_HOSTNAME` estiver setado):
+**Reexecutar** no mesmo servidor (detecta hostname no nginx e roda `upgrade-probe.sh` automaticamente):
 
 ```bash
 export PROBE_HOSTNAME=latency-sp-games-1.streethosting.com.br
@@ -170,6 +170,7 @@ File on VPS: `/etc/latency-probe/probe.env` (see [configs/probe.env.example](./c
 | `scripts/healthcheck.sh` | systemd/monitoring: local `GET /ping` |
 | `scripts/verify.sh` | Contract check (OPTIONS + GET, CORS, cache) |
 | `scripts/update.sh` | Replace binary + restart |
+| `scripts/upgrade-probe.sh` | Binário + MTR + probe.env + nginx `/mtr` |
 | `make update-fleet` | Ansible rolling restart on all nodes |
 
 **Rate limit:** nginx `60 req/min` per IP with burst 20 (see nginx template).
