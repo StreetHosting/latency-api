@@ -19,7 +19,12 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y nginx certbot python3-certbot-nginx gettext-base mtr-tiny libcap2-bin
+apt-get install -y nginx certbot python3-certbot-nginx gettext-base mtr-tiny libcap2-bin sudo
+
+short="$(hostname -s 2>/dev/null || true)"
+if [[ -n "${short}" ]] && ! grep -qE "[[:space:]]${short}([[:space:]]|$)" /etc/hosts; then
+  echo "127.0.1.1 ${short}" >>/etc/hosts
+fi
 
 if [[ -x /usr/bin/mtr ]]; then
   setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || true

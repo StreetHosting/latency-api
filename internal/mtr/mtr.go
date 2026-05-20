@@ -40,7 +40,8 @@ type Options struct {
 	UseSudo bool
 }
 
-var reportLine = regexp.MustCompile(`^\s*(\d+)\.\|--\s+(\S+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)`)
+// Matches mtr -r lines (mtr-tiny 0.95), e.g. "  1.|-- 82.38.28.254  0.0%  3 ..."
+var reportLine = regexp.MustCompile(`^\s*(\d+)\.\|\s*--\s+(\S+)\s+([\d.]+%?)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)`)
 
 // Run executes mtr toward target and returns parsed hops.
 func Run(ctx context.Context, target string, opt Options) (*Report, error) {
@@ -59,25 +60,52 @@ func Run(ctx context.Context, target string, opt Options) (*Report, error) {
 
 	start := time.Now()
 
-	out, err := runJSON(ctx, opt, target)
-	if err != nil {
-		out, err = runReport(ctx, opt, target)
+	// Prefer -r (report): stable on mtr-tiny; --json varies by build and often breaks parsing.
+	try := []func(context.Context, Options, string) ([]byte, error){
+		runReport,
+		runJSON,
+	}
+
+	var hops []Hop
+	var lastErr error
+	for _, run := range try {
+		out, err := run(ctx, opt, target)
 		if err != nil {
-			return nil, err
+			lastErr = err
+			continue
 		}
+		hops, err = parseOutput(sanitizeOutput(out))
+		if err == nil && len(hops) > 0 {
+			return &Report{
+				Target:     target,
+				Cycles:     opt.Cycles,
+				DurationMs: time.Since(start).Milliseconds(),
+				Hops:       hops,
+			}, nil
+		}
+		lastErr = err
 	}
 
-	hops, err := parseOutput(out)
-	if err != nil {
-		return nil, err
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no hops in mtr output")
 	}
+	return nil, lastErr
+}
 
-	return &Report{
-		Target:     target,
-		Cycles:     opt.Cycles,
-		DurationMs: time.Since(start).Milliseconds(),
-		Hops:       hops,
-	}, nil
+func sanitizeOutput(raw []byte) []byte {
+	var b strings.Builder
+	for _, line := range strings.Split(string(raw), "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		if strings.HasPrefix(t, "sudo:") {
+			continue
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return []byte(b.String())
 }
 
 func (opt Options) command(ctx context.Context, args ...string) *exec.Cmd {
@@ -292,10 +320,14 @@ func parseReportText(text string) ([]Hop, error) {
 		if m == nil {
 			continue
 		}
+		loss := m[3]
+		if !strings.HasSuffix(loss, "%") {
+			loss += "%"
+		}
 		hops = append(hops, Hop{
 			Hop:         atoi(m[1]),
 			Host:        m[2],
-			LossPercent: atof(strings.TrimSuffix(m[3], "%")),
+			LossPercent: atof(strings.TrimSuffix(loss, "%")),
 			Sent:        atoi(m[4]),
 			LastMs:      atof(m[5]),
 			AvgMs:       atof(m[6]),
