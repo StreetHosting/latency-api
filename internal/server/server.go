@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/streethosting/latency-api/internal/cors"
+	"github.com/streethosting/latency-api/internal/mtr"
 )
 
 // Config holds probe server settings.
@@ -18,6 +19,11 @@ type Config struct {
 	WriteTimeout           time.Duration
 	IdleTimeout            time.Duration
 	ShutdownTimeout        time.Duration
+	MTR_ENABLED            bool
+	MTR_BIN                string
+	MTR_CYCLES             int
+	MTR_TIMEOUT            time.Duration
+	MTR_MIN_INTERVAL       time.Duration
 }
 
 // New builds the HTTP handler and server.
@@ -26,6 +32,18 @@ func New(cfg Config, log *slog.Logger) *http.Server {
 
 	mux := http.NewServeMux()
 	mux.Handle("/ping", cors.Middleware(policy)(http.HandlerFunc(pingHandler)))
+
+	mtrH := &mtrHandler{
+		log:     log,
+		enabled: cfg.MTR_ENABLED,
+		opt: mtr.Options{
+			Binary:  cfg.MTR_BIN,
+			Cycles:  cfg.MTR_CYCLES,
+			Timeout: cfg.MTR_TIMEOUT,
+		},
+		limiter: mtr.NewLimiter(cfg.MTR_MIN_INTERVAL),
+	}
+	mux.Handle("/mtr", cors.Middleware(policy)(http.HandlerFunc(mtrH.serveHTTP)))
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", "")
@@ -46,7 +64,6 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet, http.MethodHead:
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodOptions:
-		// OPTIONS is handled in cors middleware before reaching here when preflight.
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.Header().Set("Allow", "GET, HEAD, OPTIONS")

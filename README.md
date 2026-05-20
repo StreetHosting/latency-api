@@ -16,6 +16,44 @@ latency-probe (Go, 127.0.0.1:8080)
 
 Each **VPS** runs one probe node (one hostname). Six VPS instances cover three networks × two nodes.
 
+## Endpoints
+
+| Método | Path | Resposta | Uso |
+|--------|------|----------|-----|
+| `GET` / `HEAD` | `/ping` | `204` vazio | Latência browser → nó (RTT no cliente) |
+| `GET` | `/mtr` | JSON | MTR do **nó → IP do cliente** (`X-Real-IP`) |
+| `OPTIONS` | `/ping`, `/mtr` | `204` | Preflight CORS |
+
+### `GET /mtr` (exemplo)
+
+```bash
+curl -s "https://latency-sp-games-1.streethosting.com.br/mtr" \
+  -H "Origin: https://streethosting.com.br" | jq
+```
+
+```json
+{
+  "target": "203.0.113.50",
+  "cycles": 10,
+  "durationMs": 8420,
+  "hops": [
+    {
+      "hop": 1,
+      "host": "10.0.0.1",
+      "lossPercent": 0,
+      "sent": 10,
+      "lastMs": 0.8,
+      "avgMs": 0.9,
+      "bestMs": 0.7,
+      "worstMs": 1.1,
+      "stdevMs": 0.1
+    }
+  ]
+}
+```
+
+**Importante:** o MTR roda **no servidor** até o IP público do usuário (visto pelo nginx). Não é o caminho inverso medido no browser. Limite: **1 req/min por IP** (app + nginx). Duração típica: ~10–45 s.
+
 ## Quick start (development)
 
 ```bash
@@ -117,6 +155,10 @@ make update-fleet
 | `LISTEN_ADDR` | `127.0.0.1:8080` | Bind address (behind nginx) |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Origens exatas (CORS) |
 | `ALLOWED_ORIGIN_SUFFIXES` | `streethosting.com.br`, `strt.host`, `ruas.run` | Qualquer subdomínio (e apex) desses domínios |
+| `MTR_ENABLED` | `true` | Liga `GET /mtr` |
+| `MTR_CYCLES` | `10` | Pacotes por hop |
+| `MTR_TIMEOUT` | `45s` | Timeout do comando mtr |
+| `MTR_MIN_INTERVAL` | `60s` | Rate limit por IP do cliente |
 
 File on VPS: `/etc/latency-probe/probe.env` (see [configs/probe.env.example](./configs/probe.env.example)).
 

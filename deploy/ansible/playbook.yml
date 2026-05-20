@@ -32,8 +32,16 @@
           - certbot
           - python3-certbot-nginx
           - gettext-base
+          - mtr-tiny
+          - libcap2-bin
         state: present
         update_cache: true
+
+    - name: Allow mtr raw sockets for probe user
+      ansible.builtin.command:
+        cmd: setcap cap_net_raw+ep /usr/bin/mtr
+      changed_when: true
+      failed_when: false
 
     - name: Create config directory
       ansible.builtin.file:
@@ -53,6 +61,11 @@
           LISTEN_ADDR=127.0.0.1:8080
           ALLOWED_ORIGINS={{ allowed_origins }}
           ALLOWED_ORIGIN_SUFFIXES={{ allowed_origin_suffixes }}
+          MTR_ENABLED=true
+          MTR_BIN=/usr/bin/mtr
+          MTR_CYCLES=10
+          MTR_TIMEOUT=45s
+          MTR_MIN_INTERVAL=60s
 
     - name: Install probe binary
       ansible.builtin.copy:

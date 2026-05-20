@@ -1,0 +1,306 @@
+package mtr
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Hop is one row in the MTR report.
+type Hop struct {
+	Hop         int     `json:"hop"`
+	Host        string  `json:"host"`
+	LossPercent float64 `json:"lossPercent"`
+	Sent        int     `json:"sent"`
+	LastMs      float64 `json:"lastMs"`
+	AvgMs       float64 `json:"avgMs"`
+	BestMs      float64 `json:"bestMs"`
+	WorstMs     float64 `json:"worstMs"`
+	StdevMs     float64 `json:"stdevMs"`
+}
+
+// Report is returned by GET /mtr.
+type Report struct {
+	Target     string `json:"target"`
+	Cycles     int    `json:"cycles"`
+	DurationMs int64  `json:"durationMs"`
+	Hops       []Hop  `json:"hops"`
+}
+
+// Options configures an MTR run.
+type Options struct {
+	Binary  string
+	Cycles  int
+	Timeout time.Duration
+}
+
+var reportLine = regexp.MustCompile(`^\s*(\d+)\.\|--\s+(\S+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)`)
+
+// Run executes mtr toward target and returns parsed hops.
+func Run(ctx context.Context, target string, opt Options) (*Report, error) {
+	if opt.Binary == "" {
+		opt.Binary = "/usr/bin/mtr"
+	}
+	if opt.Cycles <= 0 {
+		opt.Cycles = 10
+	}
+	if opt.Timeout <= 0 {
+		opt.Timeout = 45 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, opt.Timeout)
+	defer cancel()
+
+	start := time.Now()
+
+	out, err := runJSON(ctx, opt, target)
+	if err != nil {
+		out, err = runReport(ctx, opt, target)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	hops, err := parseOutput(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Report{
+		Target:     target,
+		Cycles:     opt.Cycles,
+		DurationMs: time.Since(start).Milliseconds(),
+		Hops:       hops,
+	}, nil
+}
+
+func runJSON(ctx context.Context, opt Options, target string) ([]byte, error) {
+	cmd := exec.CommandContext(
+		ctx,
+		opt.Binary,
+		"--json",
+		"--no-dns",
+		"-c", strconv.Itoa(opt.Cycles),
+		"-n",
+		target,
+	)
+	return cmd.Output()
+}
+
+func runReport(ctx context.Context, opt Options, target string) ([]byte, error) {
+	cmd := exec.CommandContext(
+		ctx,
+		opt.Binary,
+		"-r",
+		"--no-dns",
+		"-c", strconv.Itoa(opt.Cycles),
+		"-n",
+		target,
+	)
+	return cmd.Output()
+}
+
+// ParseOutputForTest exposes output parsing for unit tests.
+func ParseOutputForTest(raw []byte) ([]Hop, error) {
+	return parseOutput(raw)
+}
+
+func parseOutput(raw []byte) ([]Hop, error) {
+	if hops, err := parseMTRJSON(raw); err == nil && len(hops) > 0 {
+		return hops, nil
+	}
+	return parseReportText(string(raw))
+}
+
+func parseMTRJSON(raw []byte) ([]Hop, error) {
+	var doc struct {
+		Report struct {
+			MTR struct {
+				Hubs struct {
+					Hub json.RawMessage `json:"hub"`
+				} `json:"hubs"`
+			} `json:"mtr"`
+		} `json:"report"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	if len(doc.Report.MTR.Hubs.Hub) == 0 {
+		return nil, fmt.Errorf("empty hubs")
+	}
+
+	var one hubJSON
+	if err := json.Unmarshal(doc.Report.MTR.Hubs.Hub, &one); err == nil && one.count() > 0 {
+		return []Hop{hubToHop(one)}, nil
+	}
+
+	var many []hubJSON
+	if err := json.Unmarshal(doc.Report.MTR.Hubs.Hub, &many); err != nil {
+		return nil, err
+	}
+	hops := make([]Hop, 0, len(many))
+	for _, h := range many {
+		hops = append(hops, hubToHop(h))
+	}
+	return hops, nil
+}
+
+type hubJSON struct {
+	Count  jsonField `json:"count"`
+	Host   jsonField `json:"host"`
+	Loss   jsonField `json:"Loss%"`
+	Snt    jsonField `json:"Snt"`
+	Last   jsonField `json:"Last"`
+	Avg    jsonField `json:"Avg"`
+	Best   jsonField `json:"Best"`
+	Wrst   jsonField `json:"Wrst"`
+	Stdev  jsonField `json:"StDev"`
+	CountA jsonField `json:"@count"`
+	HostA  jsonField `json:"@host"`
+	LossA  jsonField `json:"@Loss%"`
+	SntA   jsonField `json:"@Snt"`
+	LastA  jsonField `json:"@Last"`
+	AvgA   jsonField `json:"@Avg"`
+	BestA  jsonField `json:"@Best"`
+	WrstA  jsonField `json:"@Wrst"`
+	StdevA jsonField `json:"@StDev"`
+}
+
+type jsonField string
+
+func (h hubJSON) count() int {
+	if v := h.Count.pick(); v != "" {
+		return atoi(v)
+	}
+	return atoi(h.CountA.pick())
+}
+
+func (h hubJSON) host() string {
+	if v := h.Host.pick(); v != "" {
+		return v
+	}
+	return h.HostA.pick()
+}
+
+func (h hubJSON) loss() float64 {
+	if v := h.Loss.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.LossA.pick())
+}
+
+func (h hubJSON) snt() int {
+	if v := h.Snt.pick(); v != "" {
+		return atoi(v)
+	}
+	return atoi(h.SntA.pick())
+}
+
+func (h hubJSON) last() float64 {
+	if v := h.Last.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.LastA.pick())
+}
+
+func (h hubJSON) avg() float64 {
+	if v := h.Avg.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.AvgA.pick())
+}
+
+func (h hubJSON) best() float64 {
+	if v := h.Best.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.BestA.pick())
+}
+
+func (h hubJSON) wrst() float64 {
+	if v := h.Wrst.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.WrstA.pick())
+}
+
+func (h hubJSON) stdev() float64 {
+	if v := h.Stdev.pick(); v != "" {
+		return atof(v)
+	}
+	return atof(h.StdevA.pick())
+}
+
+func (f jsonField) pick() string {
+	return strings.TrimSpace(string(f))
+}
+
+func (f *jsonField) UnmarshalJSON(b []byte) error {
+	// mtr may emit numbers or strings
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		*f = jsonField(s)
+		return nil
+	}
+	var n float64
+	if err := json.Unmarshal(b, &n); err == nil {
+		*f = jsonField(strconv.FormatFloat(n, 'f', -1, 64))
+		return nil
+	}
+	*f = jsonField(strings.Trim(string(b), `"`))
+	return nil
+}
+
+func hubToHop(h hubJSON) Hop {
+	return Hop{
+		Hop:         h.count(),
+		Host:        h.host(),
+		LossPercent: h.loss(),
+		Sent:        h.snt(),
+		LastMs:      h.last(),
+		AvgMs:       h.avg(),
+		BestMs:      h.best(),
+		WorstMs:     h.wrst(),
+		StdevMs:     h.stdev(),
+	}
+}
+
+func parseReportText(text string) ([]Hop, error) {
+	var hops []Hop
+	for _, line := range strings.Split(text, "\n") {
+		m := reportLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		hops = append(hops, Hop{
+			Hop:         atoi(m[1]),
+			Host:        m[2],
+			LossPercent: atof(strings.TrimSuffix(m[3], "%")),
+			Sent:        atoi(m[4]),
+			LastMs:      atof(m[5]),
+			AvgMs:       atof(m[6]),
+			BestMs:      atof(m[7]),
+			WorstMs:     atof(m[8]),
+			StdevMs:     atof(m[9]),
+		})
+	}
+	if len(hops) == 0 {
+		return nil, fmt.Errorf("no hops in report output")
+	}
+	return hops, nil
+}
+
+func atoi(s string) int {
+	n, _ := strconv.Atoi(strings.TrimSpace(s))
+	return n
+}
+
+func atof(s string) float64 {
+	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return f
+}

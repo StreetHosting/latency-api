@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts: LF only (evita diff de permissão/line-ending em VPS Linux)
+*.sh text eol=lf

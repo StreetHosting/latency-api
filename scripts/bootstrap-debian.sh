@@ -107,8 +107,12 @@ clone_or_update_repo() {
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     log "Atualizando repositório em ${INSTALL_DIR} ..."
     git -C "${INSTALL_DIR}" fetch origin "${REPO_BRANCH}"
-    git -C "${INSTALL_DIR}" checkout "${REPO_BRANCH}"
-    git -C "${INSTALL_DIR}" pull --ff-only origin "${REPO_BRANCH}"
+    if [[ -n "$(git -C "${INSTALL_DIR}" status --porcelain 2>/dev/null)" ]]; then
+      warn "Alterações locais detectadas — sincronizando com origin/${REPO_BRANCH} (descarte intencional em VPS de deploy)."
+    fi
+    git -C "${INSTALL_DIR}" checkout -B "${REPO_BRANCH}" "origin/${REPO_BRANCH}"
+    git -C "${INSTALL_DIR}" reset --hard "origin/${REPO_BRANCH}"
+    git -C "${INSTALL_DIR}" clean -fd
   else
     log "Clonando ${REPO_URL} → ${INSTALL_DIR} ..."
     mkdir -p "$(dirname "${INSTALL_DIR}")"
@@ -120,7 +124,6 @@ build_probe() {
   log "Compilando latency-probe..."
   export PATH="/usr/local/go/bin:${PATH}"
   cd "${INSTALL_DIR}"
-  chmod +x scripts/*.sh 2>/dev/null || true
   bash scripts/build.sh
   test -x "${INSTALL_DIR}/dist/latency-probe-linux-amd64" \
     || die "Binário não gerado em dist/latency-probe-linux-amd64"

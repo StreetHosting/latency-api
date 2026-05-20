@@ -19,7 +19,11 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y nginx certbot python3-certbot-nginx gettext-base
+apt-get install -y nginx certbot python3-certbot-nginx gettext-base mtr-tiny libcap2-bin
+
+if [[ -x /usr/bin/mtr ]]; then
+  setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || echo "[install] aviso: setcap em /usr/bin/mtr falhou — MTR pode exigir root" >&2
+fi
 
 id -u latency-probe &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin latency-probe
 install -d -m 0750 /etc/latency-probe
@@ -29,6 +33,11 @@ cat >/etc/latency-probe/probe.env <<EOF
 LISTEN_ADDR=127.0.0.1:8080
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 ALLOWED_ORIGIN_SUFFIXES=${ALLOWED_ORIGIN_SUFFIXES}
+MTR_ENABLED=true
+MTR_BIN=/usr/bin/mtr
+MTR_CYCLES=10
+MTR_TIMEOUT=45s
+MTR_MIN_INTERVAL=60s
 EOF
 chmod 0640 /etc/latency-probe/probe.env
 
@@ -47,6 +56,7 @@ server {
     server_name ${PROBE_HOSTNAME};
     location /.well-known/acme-challenge/ { root /var/www/certbot; }
     location = /ping { proxy_pass http://127.0.0.1:8080; }
+    location = /mtr  { proxy_pass http://127.0.0.1:8080; proxy_read_timeout 60s; }
     location / { return 404; }
 }
 NGINX
