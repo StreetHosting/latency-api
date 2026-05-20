@@ -1,0 +1,2 @@
+# Allow probe user to run mtr as root (raw ICMP) without password.
+latency-probe ALL=(root) NOPASSWD: /usr/bin/mtr

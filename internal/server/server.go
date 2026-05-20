@@ -24,6 +24,7 @@ type Config struct {
 	MTR_CYCLES             int
 	MTR_TIMEOUT            time.Duration
 	MTR_MIN_INTERVAL       time.Duration
+	MTR_USE_SUDO           bool
 }
 
 // New builds the HTTP handler and server.
@@ -40,6 +41,7 @@ func New(cfg Config, log *slog.Logger) *http.Server {
 			Binary:  cfg.MTR_BIN,
 			Cycles:  cfg.MTR_CYCLES,
 			Timeout: cfg.MTR_TIMEOUT,
+			UseSudo: cfg.MTR_USE_SUDO,
 		},
 		limiter: mtr.NewLimiter(cfg.MTR_MIN_INTERVAL),
 	}

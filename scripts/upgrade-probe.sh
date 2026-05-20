@@ -32,8 +32,10 @@ apt-get update -qq
 apt-get install -y mtr-tiny libcap2-bin gettext-base
 
 if [[ -x /usr/bin/mtr ]]; then
-  setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || echo "[upgrade] aviso: setcap falhou" >&2
+  setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || true
 fi
+install -m 0440 "${ROOT}/deploy/sudoers/latency-probe-mtr" /etc/sudoers.d/latency-probe-mtr
+visudo -c -f /etc/sudoers.d/latency-probe-mtr
 
 PROBE_HOSTNAME="$(detect_hostname)" || {
   echo "Defina PROBE_HOSTNAME ou configure nginx sites-enabled." >&2
@@ -55,7 +57,10 @@ grep -q '^MTR_BIN=' "${ENV_FILE}" 2>/dev/null || echo 'MTR_BIN=/usr/bin/mtr' >>"
 grep -q '^MTR_CYCLES=' "${ENV_FILE}" 2>/dev/null || echo 'MTR_CYCLES=10' >>"${ENV_FILE}"
 grep -q '^MTR_TIMEOUT=' "${ENV_FILE}" 2>/dev/null || echo 'MTR_TIMEOUT=45s' >>"${ENV_FILE}"
 grep -q '^MTR_MIN_INTERVAL=' "${ENV_FILE}" 2>/dev/null || echo 'MTR_MIN_INTERVAL=60s' >>"${ENV_FILE}"
+grep -q '^MTR_USE_SUDO=' "${ENV_FILE}" 2>/dev/null || echo 'MTR_USE_SUDO=true' >>"${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
+
+install -m 0644 "${ROOT}/deploy/systemd/latency-probe.service" /etc/systemd/system/latency-probe.service
 
 BINARY_SRC="${ROOT}/dist/latency-probe-linux-amd64"
 [[ -x "${BINARY_SRC}" ]] || { echo "Rode scripts/build.sh antes." >&2; exit 1; }

@@ -14,8 +14,7 @@ Restart=on-failure
 RestartSec=2
 LimitNOFILE=65535
 
-# Hardening
-NoNewPrivileges=true
+# Hardening (NoNewPrivileges off: mtr needs cap_net_raw via sudo or file caps)
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
@@ -25,10 +24,9 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 LockPersonality=true
 RestrictRealtime=true
-RestrictSUIDSGID=true
 RemoveIPC=true
 SystemCallArchitectures=native
-SystemCallFilter=@system-service
+SystemCallFilter=@system-service @network-io
 ReadWritePaths=/var/lib/latency-probe
 
 [Install]

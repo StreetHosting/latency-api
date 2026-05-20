@@ -37,6 +37,7 @@ type Options struct {
 	Binary  string
 	Cycles  int
 	Timeout time.Duration
+	UseSudo bool
 }
 
 var reportLine = regexp.MustCompile(`^\s*(\d+)\.\|--\s+(\S+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)`)
@@ -79,30 +80,44 @@ func Run(ctx context.Context, target string, opt Options) (*Report, error) {
 	}, nil
 }
 
+func (opt Options) command(ctx context.Context, args ...string) *exec.Cmd {
+	if opt.UseSudo {
+		sudoArgs := append([]string{"-n", opt.Binary}, args...)
+		return exec.CommandContext(ctx, "sudo", sudoArgs...)
+	}
+	return exec.CommandContext(ctx, opt.Binary, args...)
+}
+
 func runJSON(ctx context.Context, opt Options, target string) ([]byte, error) {
-	cmd := exec.CommandContext(
-		ctx,
-		opt.Binary,
+	return runCommand(ctx, opt.command(ctx,
 		"--json",
 		"--no-dns",
 		"-c", strconv.Itoa(opt.Cycles),
 		"-n",
 		target,
-	)
-	return cmd.Output()
+	))
 }
 
 func runReport(ctx context.Context, opt Options, target string) ([]byte, error) {
-	cmd := exec.CommandContext(
-		ctx,
-		opt.Binary,
+	return runCommand(ctx, opt.command(ctx,
 		"-r",
 		"--no-dns",
 		"-c", strconv.Itoa(opt.Cycles),
 		"-n",
 		target,
-	)
-	return cmd.Output()
+	))
+}
+
+func runCommand(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			return nil, fmt.Errorf("%w", err)
+		}
+		return nil, fmt.Errorf("%w: %s", err, msg)
+	}
+	return out, nil
 }
 
 // ParseOutputForTest exposes output parsing for unit tests.

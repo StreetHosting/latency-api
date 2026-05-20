@@ -54,7 +54,8 @@ func (h *mtrHandler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.Warn("mtr failed", "target", target, "err", err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"error": "mtr execution failed",
+			"error":  "mtr execution failed",
+			"detail": err.Error(),
 		})
 		return
 	}

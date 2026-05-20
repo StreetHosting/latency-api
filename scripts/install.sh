@@ -22,8 +22,10 @@ apt-get update -qq
 apt-get install -y nginx certbot python3-certbot-nginx gettext-base mtr-tiny libcap2-bin
 
 if [[ -x /usr/bin/mtr ]]; then
-  setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || echo "[install] aviso: setcap em /usr/bin/mtr falhou — MTR pode exigir root" >&2
+  setcap cap_net_raw+ep /usr/bin/mtr 2>/dev/null || true
 fi
+install -m 0440 deploy/sudoers/latency-probe-mtr /etc/sudoers.d/latency-probe-mtr
+visudo -c -f /etc/sudoers.d/latency-probe-mtr
 
 id -u latency-probe &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin latency-probe
 install -d -m 0750 /etc/latency-probe
@@ -38,6 +40,7 @@ MTR_BIN=/usr/bin/mtr
 MTR_CYCLES=10
 MTR_TIMEOUT=45s
 MTR_MIN_INTERVAL=60s
+MTR_USE_SUDO=true
 EOF
 chmod 0640 /etc/latency-probe/probe.env
 

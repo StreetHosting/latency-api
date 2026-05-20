@@ -66,6 +66,14 @@
           MTR_CYCLES=10
           MTR_TIMEOUT=45s
           MTR_MIN_INTERVAL=60s
+          MTR_USE_SUDO=true
+
+    - name: Install sudoers for mtr
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../sudoers/latency-probe-mtr"
+        dest: /etc/sudoers.d/latency-probe-mtr
+        mode: "0440"
+        validate: "visudo -cf %s"
 
     - name: Install probe binary
       ansible.builtin.copy:

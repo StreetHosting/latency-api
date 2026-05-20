@@ -35,6 +35,7 @@ func main() {
 		MTR_CYCLES:            envOrInt("MTR_CYCLES", 10),
 		MTR_TIMEOUT:           mtrTimeout,
 		MTR_MIN_INTERVAL:      envOrDuration("MTR_MIN_INTERVAL", 60*time.Second),
+		MTR_USE_SUDO:          envOrBool("MTR_USE_SUDO", true),
 	}
 
 	srv := server.New(cfg, log)
