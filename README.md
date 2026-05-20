@@ -22,13 +22,49 @@ Each **VPS** runs one probe node (one hostname). Six VPS instances cover three n
 |--------|------|----------|-----|
 | `GET` / `HEAD` | `/ping` | `204` vazio | Latência browser → nó (RTT no cliente) |
 | `GET` | `/mtr` | JSON | MTR do **nó → IP do cliente** (`X-Real-IP`) |
+| `GET` | `/mtr?stream=1` | SSE | Mesmo MTR, hops enviados em tempo real (`mtr --raw`) |
 | `OPTIONS` | `/ping`, `/mtr` | `204` | Preflight CORS |
 
-### `GET /mtr` (exemplo)
+### `GET /mtr` (JSON completo no final)
 
 ```bash
 curl -s "https://latency-sp-games-1.streethosting.com.br/mtr" \
   -H "Origin: https://streethosting.com.br" | jq
+```
+
+### `GET /mtr?stream=1` (SSE — hops em tempo real)
+
+Retorna `text/event-stream`. Eventos: `start` → `hop` (várias vezes, com `progress` 0–1) → `done`.
+
+```bash
+curl -N "https://latency-sp-games-1.streethosting.com.br/mtr?stream=1" \
+  -H "Origin: https://streethosting.com.br"
+```
+
+No navegador (fetch):
+
+```javascript
+const res = await fetch(probeUrl + "/mtr?stream=1", {
+  headers: { Origin: "https://streethosting.com.br" },
+  cache: "no-store",
+});
+const reader = res.body.getReader();
+const dec = new TextDecoder();
+let buf = "";
+while (true) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  buf += dec.decode(value, { stream: true });
+  for (const block of buf.split("\n\n")) {
+    if (!block.includes("data:")) continue;
+    const line = block.split("\n").find((l) => l.startsWith("data:"));
+    if (!line) continue;
+    const ev = JSON.parse(line.slice(5));
+    if (ev.type === "hop") console.log(ev.progress, ev.hop);
+    if (ev.type === "done") console.log("complete", ev.hops);
+  }
+  buf = buf.slice(buf.lastIndexOf("\n\n") + 2);
+}
 ```
 
 ```json
